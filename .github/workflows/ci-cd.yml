@@ -11,11 +11,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  NODE_VERSION: "20"
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
-
 jobs:
   # ---------------------------------------------------------------- CI
   ci:
@@ -43,7 +38,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: "20"
           cache: npm
 
       - run: npm ci
@@ -65,85 +60,58 @@ jobs:
       - name: Build
         run: npm run build
 
-  # ---------------------------------------------------------------- Docker image
-  docker:
-    name: Build & Push Image
-    needs: ci
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image: ${{ env.IMAGE_NAME }}:sha-${{ steps.short.outputs.sha }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - id: short
-        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:sha-${{ steps.short.outputs.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ---------------------------------------------------------------- Deploy
+  # ---------------------------------------------------------------- Deploy (pm2)
   deploy:
-    name: Deploy to Server
-    needs: docker
+    name: Deploy to Server (pm2)
+    needs: ci
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: production
-    permissions:
-      contents: read
-      packages: read
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Copy compose file to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          source: docker-compose.prod.yml
-          target: ${{ secrets.DEPLOY_PATH || 'taskmanager' }}
-
-      - name: Pull image and restart
+      - name: Pull, build and reload on server
         uses: appleboy/ssh-action@v1.2.0
         env:
-          IMAGE: ${{ needs.docker.outputs.image }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || 'taskmanager' }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          PM2_APP_NAME: ${{ secrets.PM2_APP_NAME || 'taskmanager' }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          envs: IMAGE,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
-          script_stop: true
+          envs: DEPLOY_PATH,PM2_APP_NAME
+          command_timeout: 20m
           script: |
             set -e
+
+            # Non-interactive SSH doesn't load the login profile; pick up nvm if Node was installed with it.
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+            [ -n "$DEPLOY_PATH" ] || { echo "DEPLOY_PATH secret is not set"; exit 1; }
             cd "$DEPLOY_PATH"
-            test -f .env || { echo ".env is missing in $(pwd) — see README (CI/CD section)"; exit 1; }
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            export APP_IMAGE="$IMAGE"
-            docker compose -f docker-compose.prod.yml pull app
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
-            docker logout ghcr.io
-            docker image prune -f
+            [ -f .env ] || { echo ".env is missing in $(pwd)"; exit 1; }
+
+            echo "==> git pull"
+            git pull --ff-only origin main
+
+            echo "==> npm ci"
+            npm ci
+
+            echo "==> prisma db push"
+            npx prisma db push --skip-generate
+
+            echo "==> build"
+            npm run build
+
+            echo "==> pm2 reload $PM2_APP_NAME"
+            if pm2 describe "$PM2_APP_NAME" > /dev/null 2>&1; then
+              pm2 reload "$PM2_APP_NAME" --update-env
+            else
+              pm2 start npm --name "$PM2_APP_NAME" -- start
+            fi
+            pm2 save
+
+            echo "==> deployed $(git rev-parse --short HEAD)"
