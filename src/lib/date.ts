@@ -31,3 +31,15 @@ export function endOfDay(d = new Date()) {
   x.setHours(23, 59, 59, 999);
   return x;
 }
+
+const rtf = new Intl.RelativeTimeFormat("fa", { numeric: "auto" });
+/** "۵ دقیقه پیش", "دیروز", … falling back to a full date after a week. */
+export function timeAgo(iso: string, now = Date.now()) {
+  const sec = Math.round((new Date(iso).getTime() - now) / 1000);
+  const abs = Math.abs(sec);
+  if (abs < 45) return "همین الان";
+  if (abs < 3600) return rtf.format(Math.round(sec / 60), "minute");
+  if (abs < 86400) return rtf.format(Math.round(sec / 3600), "hour");
+  if (abs < 7 * 86400) return rtf.format(Math.round(sec / 86400), "day");
+  return formatFull(iso);
+}

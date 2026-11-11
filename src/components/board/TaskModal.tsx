@@ -7,18 +7,20 @@ import { DeadlinePicker } from "./JalaliDatePicker";
 import { useToast } from "../Toast";
 import { SearchSelect } from "../SearchSelect";
 import { TaskImages, imageFiles, type PendingImage } from "./TaskImages";
+import { TaskDiscussion } from "./TaskDiscussion";
 import { prepareImage, uploadFile } from "@/lib/image";
 import { api, errorMessage } from "@/lib/client";
 import { formatFull } from "@/lib/date";
-import { PRIORITIES, type AttachmentT, type BoardT, type LabelT, type Priority, type TaskT } from "@/lib/types";
+import { PRIORITIES, type AttachmentT, type BoardT, type LabelT, type Priority, type TaskT, type UserLite } from "@/lib/types";
 
 interface Props {
   board: BoardT;
   task: TaskT | null;
   /** Creator of the task or a super admin. */
   canDelete: boolean;
-  meId: string;
+  me: UserLite;
   superAdmin: boolean;
+  onCommentCount: (taskId: string, count: number) => void;
   defaultColumnId: string;
   open: boolean;
   onClose: () => void;
@@ -56,7 +58,8 @@ function presetDeadline(daysFromToday: number) {
   return d.toISOString();
 }
 
-export function TaskModal({ board, task, canDelete, meId, superAdmin, defaultColumnId, open, onClose, onSaved, onDeleted, onLabelCreated }: Props) {
+export function TaskModal({ board, task, canDelete, me, superAdmin, onCommentCount, defaultColumnId, open, onClose, onSaved, onDeleted, onLabelCreated }: Props) {
+  const meId = me.id;
   const notify = useToast();
   const [form, setForm] = useState<FormState>(() => initialState(task, defaultColumnId));
   const [saving, setSaving] = useState(false);
@@ -322,6 +325,12 @@ export function TaskModal({ board, task, canDelete, meId, superAdmin, defaultCol
           </button>
         </div>
       </form>
+      {/* Outside the form so typing a comment never submits the task. */}
+      {task && (
+        <div className="mt-5">
+          <TaskDiscussion task={task} me={me} superAdmin={superAdmin} onCount={(n) => onCommentCount(task.id, n)} />
+        </div>
+      )}
     </Modal>
   );
 }

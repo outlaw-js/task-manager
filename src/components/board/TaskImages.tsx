@@ -115,7 +115,7 @@ export function TaskImages({ attachments, pending, onAdd, onRemovePending, onDel
   );
 }
 
-function Lightbox({ images, index, onIndex, onClose }: { images: { src: string; name: string; size: number }[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
+export function Lightbox({ images, index, onIndex, onClose }: { images: { src: string; name: string; size: number }[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
   useEffect(() => {
     // Capture on window so Escape closes only the lightbox, not the task modal underneath.
     const onKey = (e: KeyboardEvent) => {

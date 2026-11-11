@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ taskId: string }> };
 /** Upload one image (multipart field "file") to a task. Any board member may attach. */
 export const POST = handle(async (req: Request, { params }: Ctx) => {
   const { taskId } = await params;
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { boardId: true, _count: { select: { attachments: true } } } });
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { boardId: true, _count: { select: { attachments: { where: { commentId: null } } } } } });
   if (!task) throw new HttpError(404, "تسک پیدا نشد");
   const { user } = await requireBoard(task.boardId);
   if (task._count.attachments >= MAX_IMAGES_PER_TASK) throw new HttpError(400, `هر تسک حداکثر ${MAX_IMAGES_PER_TASK.toLocaleString("fa-IR")} تصویر می‌تواند داشته باشد`);

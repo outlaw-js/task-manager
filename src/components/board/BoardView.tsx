@@ -485,8 +485,15 @@ export function BoardView({ boardId, me, superAdmin = false }: { boardId: string
           board={boardWithTasks}
           task={editor.task}
           canDelete={!!editor.task && canDeleteTask(editor.task, me.id, superAdmin)}
-          meId={me.id}
+          me={me}
           superAdmin={superAdmin}
+          onCommentCount={(taskId, count) =>
+            setTasks((prev) =>
+              prev.some((t) => t.id === taskId && t._count?.comments !== count)
+                ? prev.map((t) => (t.id === taskId ? { ...t, _count: { comments: count } } : t))
+                : prev,
+            )
+          }
           defaultColumnId={editor.columnId}
           onClose={() => setEditor(null)}
           onSaved={upsertTask}

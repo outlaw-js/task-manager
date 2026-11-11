@@ -65,6 +65,14 @@ export function TaskCardBody({ task, dragging }: { task: TaskT; dragging?: boole
             {task.attachments.length.toLocaleString("fa-IR")}
           </span>
         )}
+        {(task._count?.comments ?? 0) > 0 && (
+          <span className="flex items-center gap-0.5 text-slate-400" title={`${task._count!.comments.toLocaleString("fa-IR")} کامنت`}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+            </svg>
+            {task._count!.comments.toLocaleString("fa-IR")}
+          </span>
+        )}
         {task.description && (
           <span className="text-slate-400" title="دارای توضیحات">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

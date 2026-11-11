@@ -35,6 +35,7 @@ model User {
   assigned     Task[]        @relation("TaskAssignees")
   pushSubscriptions PushSubscription[]
   attachments  Attachment[]
+  comments     Comment[]
 }
 
 model Board {
@@ -102,6 +103,7 @@ model Task {
   assignees   User[]    @relation("TaskAssignees")
   labels      Label[]
   attachments Attachment[]
+  comments    Comment[]
 
   @@index([columnId, position])
 }
@@ -118,10 +120,12 @@ model PushSubscription {
   @@index([userId])
 }
 
-/// An image attached to a task. The file lives on disk under UPLOAD_DIR at `storageKey`.
+/// A file attached to a task (images, shown on the card) or to one of its comments
+/// (`commentId` set; images or documents). The file lives on disk under UPLOAD_DIR at `storageKey`.
 model Attachment {
   id         String   @id @default(cuid())
   taskId     String
+  commentId  String?
   uploaderId String?
   name       String
   mimeType   String
@@ -129,7 +133,24 @@ model Attachment {
   storageKey String   @unique
   createdAt  DateTime @default(now())
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  comment    Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
   uploader   User?    @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
 
   @@index([taskId])
+  @@index([commentId])
+}
+
+/// A message in a task's discussion, visible to the task's creator and assignees.
+model Comment {
+  id          String       @id @default(cuid())
+  taskId      String
+  authorId    String?
+  body        String
+  createdAt   DateTime     @default(now())
+  editedAt    DateTime?
+  task        Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author      User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  attachments Attachment[]
+
+  @@index([taskId, createdAt])
 }

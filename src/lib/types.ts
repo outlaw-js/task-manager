@@ -29,6 +29,15 @@ export interface AttachmentT {
 
 export const attachmentUrl = (id: string) => `/api/attachments/${id}`;
 
+export interface CommentT {
+  id: string;
+  body: string;
+  createdAt: string;
+  editedAt: string | null;
+  author: UserLite | null;
+  attachments: AttachmentT[];
+}
+
 export interface TaskT {
   id: string;
   title: string;
@@ -43,6 +52,7 @@ export interface TaskT {
   assignees: UserLite[];
   labels: LabelT[];
   attachments: AttachmentT[];
+  _count?: { comments: number };
 }
 
 export interface ColumnT {

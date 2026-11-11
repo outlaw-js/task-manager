@@ -16,7 +16,9 @@ export const taskInclude = {
   creator: { select: publicUserSelect },
   assignees: { select: publicUserSelect, orderBy: { name: "asc" } },
   labels: { select: { id: true, name: true, color: true }, orderBy: { name: "asc" } },
-  attachments: { select: attachmentSelect, orderBy: { createdAt: "asc" } },
+  // Task images only; files posted in comments belong to the discussion.
+  attachments: { where: { commentId: null }, select: attachmentSelect, orderBy: { createdAt: "asc" } },
+  _count: { select: { comments: true } },
 } satisfies Prisma.TaskInclude;
 
 export async function loadBoard(boardId: string) {
