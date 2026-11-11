@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum BoardRole {
+  OWNER
+  MEMBER
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  color        String        @default("#6366f1")
+  createdAt    DateTime      @default(now())
+  memberships  BoardMember[]
+  ownedBoards  Board[]       @relation("BoardOwner")
+  createdTasks Task[]        @relation("TaskCreator")
+  assigned     Task[]        @relation("TaskAssignees")
+}
+
+model Board {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  ownerId     String
+  owner       User          @relation("BoardOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  members     BoardMember[]
+  columns     Column[]
+  labels      Label[]
+  tasks       Task[]
+}
+
+model BoardMember {
+  boardId  String
+  userId   String
+  role     BoardRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+  board    Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([boardId, userId])
+}
+
+model Column {
+  id       String @id @default(cuid())
+  title    String
+  color    String @default("#94a3b8")
+  position Int
+  boardId  String
+  board    Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks    Task[]
+
+  @@index([boardId, position])
+}
+
+model Label {
+  id      String @id @default(cuid())
+  name    String
+  color   String
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@unique([boardId, name])
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  priority    Priority  @default(MEDIUM)
+  deadline    DateTime?
+  position    Int
+  boardId     String
+  columnId    String
+  creatorId   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  board       Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  column      Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  creator     User?     @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  assignees   User[]    @relation("TaskAssignees")
+  labels      Label[]
+
+  @@index([columnId, position])
+}
