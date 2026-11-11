@@ -3,14 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { HttpError, handle, readJson, requireBoard } from "@/lib/api";
 import { parseTaskInput, taskInclude } from "@/lib/board";
 import { notifyUsers } from "@/lib/push";
+import { removeAttachmentFiles } from "@/lib/uploads";
 
 type Ctx = { params: Promise<{ taskId: string }> };
 
 async function findTask(taskId: string) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new HttpError(404, "تسک پیدا نشد");
-  const { user, role } = await requireBoard(task.boardId);
-  return { task, user, role };
+  const { user, role, superAdmin } = await requireBoard(task.boardId);
+  return { task, user, role, superAdmin };
 }
 
 export const PATCH = handle(async (req: Request, { params }: Ctx) => {
@@ -58,11 +59,12 @@ export const PATCH = handle(async (req: Request, { params }: Ctx) => {
 
 export const DELETE = handle(async (_req: Request, { params }: Ctx) => {
   const { taskId } = await params;
-  const { task, user, role } = await findTask(taskId);
-  // Only the task's creator or the board owner may delete it.
-  if (task.creatorId !== user.id && role !== "OWNER") {
-    throw new HttpError(403, "فقط سازنده تسک یا مالک برد می‌تواند آن را حذف کند");
+  const { task, user, superAdmin } = await findTask(taskId);
+  // Only the task's creator or a super admin may delete it.
+  if (task.creatorId !== user.id && !superAdmin) {
+    throw new HttpError(403, "فقط سازنده تسک یا ادمین کل می‌تواند آن را حذف کند");
   }
+  await removeAttachmentFiles({ taskId });
   await prisma.task.delete({ where: { id: taskId } });
   return NextResponse.json({ ok: true });
 });

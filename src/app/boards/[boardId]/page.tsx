@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isSuperAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Header } from "@/components/Header";
 import { BoardView } from "@/components/board/BoardView";
@@ -17,10 +17,10 @@ export default async function BoardPage({ params }: { params: Promise<{ boardId:
 
   return (
     <div className="flex h-full flex-col">
-      <Header user={user}>
+      <Header user={user} superAdmin={isSuperAdmin(user.email)}>
         <span className="hidden truncate text-sm text-slate-400 sm:block">/ {membership.board.name}</span>
       </Header>
-      <BoardView boardId={boardId} me={user} />
+      <BoardView boardId={boardId} me={user} superAdmin={isSuperAdmin(user.email)} />
     </div>
   );
 }

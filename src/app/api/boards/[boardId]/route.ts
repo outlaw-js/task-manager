@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handle, readJson, requireBoard, str } from "@/lib/api";
 import { loadBoard } from "@/lib/board";
+import { removeAttachmentFiles } from "@/lib/uploads";
 
 type Ctx = { params: Promise<{ boardId: string }> };
 
@@ -29,6 +30,7 @@ export const PATCH = handle(async (req: Request, { params }: Ctx) => {
 export const DELETE = handle(async (_req: Request, { params }: Ctx) => {
   const { boardId } = await params;
   await requireBoard(boardId, { owner: true });
+  await removeAttachmentFiles({ task: { boardId } });
   await prisma.board.delete({ where: { id: boardId } });
   return NextResponse.json({ ok: true });
 });

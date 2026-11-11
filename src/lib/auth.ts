@@ -3,7 +3,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "./prisma";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession, verifySession } from "./session";
 
-export const publicUserSelect = { id: true, name: true, email: true, color: true } as const;
+export const publicUserSelect = { id: true, name: true, email: true, color: true, avatar: true } as const;
+
+/** System-wide admins, listed by email in SUPER_ADMIN_EMAILS (comma separated). */
+export function isSuperAdmin(email: string | null | undefined) {
+  if (!email) return false;
+  const list = (process.env.SUPER_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return list.includes(email.toLowerCase());
+}
 
 export async function getCurrentUser() {
   const store = await cookies();

@@ -3,10 +3,20 @@ import { prisma } from "./prisma";
 import { publicUserSelect } from "./auth";
 import { HttpError, str } from "./api";
 
+export const attachmentSelect = {
+  id: true,
+  name: true,
+  mimeType: true,
+  size: true,
+  uploaderId: true,
+  createdAt: true,
+} satisfies Prisma.AttachmentSelect;
+
 export const taskInclude = {
   creator: { select: publicUserSelect },
   assignees: { select: publicUserSelect, orderBy: { name: "asc" } },
   labels: { select: { id: true, name: true, color: true }, orderBy: { name: "asc" } },
+  attachments: { select: attachmentSelect, orderBy: { createdAt: "asc" } },
 } satisfies Prisma.TaskInclude;
 
 export async function loadBoard(boardId: string) {

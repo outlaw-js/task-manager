@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { BoardRole } from "@prisma/client";
-import { getCurrentUser } from "./auth";
+import { getCurrentUser, isSuperAdmin } from "./auth";
 import { prisma } from "./prisma";
 
 export class HttpError extends Error {
@@ -32,6 +32,12 @@ export async function requireUser() {
   return user;
 }
 
+export async function requireSuperAdmin() {
+  const user = await requireUser();
+  if (!isSuperAdmin(user.email)) throw new HttpError(403, "فقط ادمین کل این دسترسی را دارد");
+  return user;
+}
+
 /** Owner and admins manage the board (members, columns, name); plain members work on tasks. */
 export const canManage = (role: BoardRole) => role === "OWNER" || role === "ADMIN";
 
@@ -51,7 +57,7 @@ export async function requireBoard(boardId: string, opts: { owner?: boolean; man
   if (opts.manage && !canManage(membership.role)) {
     throw new HttpError(403, "فقط مالک یا ادمین برد این دسترسی را دارد");
   }
-  return { user, role: membership.role };
+  return { user, role: membership.role, superAdmin: isSuperAdmin(user.email) };
 }
 
 export async function readJson<T = Record<string, unknown>>(req: Request): Promise<T> {

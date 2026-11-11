@@ -30,21 +30,20 @@ interface Props {
   canManage: boolean;
   onOpenTask: (t: TaskT) => void;
   onTaskMenu: (e: React.MouseEvent, t: TaskT) => void;
-  onQuickAdd: (columnId: string, title: string) => Promise<void>;
+  /** Opens the full task form for this column (so it can be assigned right away). */
+  onAddTask: (columnId: string) => void;
   onUpdate: (columnId: string, data: Partial<Pick<ColumnT, "title" | "color">>) => void;
   onMove: (columnId: string, dir: -1 | 1) => void;
   onDelete: (columnId: string) => void;
 }
 
-export function Column({ column, tasks, total, isFirst, isLast, canManage, onOpenTask, onTaskMenu, onQuickAdd, onUpdate, onMove, onDelete }: Props) {
+export function Column({ column, tasks, total, isFirst, isLast, canManage, onOpenTask, onTaskMenu, onAddTask, onUpdate, onMove, onDelete }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: columnDropId(column.id), data: { type: "column" } });
   const openMenu = useContextMenu();
-  const [adding, setAdding] = useState(false);
-  const [title, setTitle] = useState("");
   const [renaming, setRenaming] = useState(false);
 
   const menuItems = (): MenuEntry[] => {
-    const items: MenuEntry[] = [{ label: "افزودن تسک", icon: "+", onClick: () => setAdding(true) }];
+    const items: MenuEntry[] = [{ label: "افزودن تسک", icon: "+", onClick: () => onAddTask(column.id) }];
     if (!canManage) return items;
     return [
       ...items,
@@ -66,13 +65,6 @@ export function Column({ column, tasks, total, isFirst, isLast, canManage, onOpe
       { label: "حذف ستون", danger: true, onClick: () => onDelete(column.id) },
     ];
   };
-
-  async function submitQuickAdd(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) return;
-    await onQuickAdd(column.id, title.trim());
-    setTitle("");
-  }
 
   return (
     <section className="flex max-h-full w-[290px] shrink-0 flex-col rounded-2xl bg-slate-200/60">
@@ -123,29 +115,9 @@ export function Column({ column, tasks, total, isFirst, isLast, canManage, onOpe
       </div>
 
       <div className="p-2 pt-0">
-        {adding ? (
-          <form onSubmit={submitQuickAdd} className="space-y-2">
-            <textarea
-              autoFocus
-              className="input min-h-16 resize-none"
-              placeholder="عنوان تسک…"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) submitQuickAdd(e);
-                if (e.key === "Escape") setAdding(false);
-              }}
-            />
-            <div className="flex gap-2">
-              <button className="btn-primary !py-1.5">افزودن</button>
-              <button type="button" className="btn-ghost !py-1.5" onClick={() => setAdding(false)}>انصراف</button>
-            </div>
-          </form>
-        ) : (
-          <button className="btn-ghost w-full !justify-start text-slate-500" onClick={() => setAdding(true)}>
-            <span className="text-lg leading-none">+</span> افزودن تسک
-          </button>
-        )}
+        <button className="btn-ghost w-full !justify-start text-slate-500" onClick={() => onAddTask(column.id)}>
+          <span className="text-lg leading-none">+</span> افزودن تسک
+        </button>
       </div>
     </section>
   );

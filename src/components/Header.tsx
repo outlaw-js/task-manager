@@ -7,7 +7,7 @@ import { NotificationBell, PwaPrompts, disablePush } from "./PwaPrompts";
 import { api } from "@/lib/client";
 import type { UserLite } from "@/lib/types";
 
-export function Header({ user, children }: { user: UserLite; children?: React.ReactNode }) {
+export function Header({ user, superAdmin, children }: { user: UserLite; superAdmin?: boolean; children?: React.ReactNode }) {
   const router = useRouter();
   async function logout() {
     // Stop this device's notifications first so the next person on it doesn't get them.
@@ -31,9 +31,16 @@ export function Header({ user, children }: { user: UserLite; children?: React.Re
         </Link>
         <div className="min-w-0 flex-1">{children}</div>
         <div className="flex items-center gap-2">
+          {superAdmin && (
+            <Link href="/admin" className="btn-ghost text-xs">
+              مدیریت کاربران
+            </Link>
+          )}
           <NotificationBell />
-          <Avatar user={user} />
-          <span className="hidden text-sm font-medium md:inline">{user.name}</span>
+          <Link href="/profile" className="flex items-center gap-2 rounded-full py-0.5 pe-2 ps-0.5 hover:bg-slate-100" title="پروفایل من">
+            <Avatar user={user} />
+            <span className="hidden text-sm font-medium md:inline">{user.name}</span>
+          </Link>
           <button onClick={logout} className="btn-ghost text-xs">
             خروج
           </button>

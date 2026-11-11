@@ -4,7 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AvatarStack } from "../Avatar";
 import { deadlineState, formatFull, formatShort } from "@/lib/date";
-import { priorityMeta, type TaskT } from "@/lib/types";
+import { attachmentUrl, priorityMeta, type TaskT } from "@/lib/types";
 
 const DEADLINE_STYLES = {
   overdue: "bg-red-50 text-red-700",
@@ -22,6 +22,16 @@ export function TaskCardBody({ task, dragging }: { task: TaskT; dragging?: boole
       }`}
     >
       <span className="absolute inset-y-3 right-0 w-1 rounded-l-full" style={{ backgroundColor: p.color }} />
+      {task.attachments.length > 0 && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={attachmentUrl(task.attachments[0].id)}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          className="-mx-1 -mt-1 mb-2.5 h-28 w-[calc(100%+0.5rem)] max-w-none rounded-lg bg-slate-100 object-cover"
+        />
+      )}
       {task.labels.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
           {task.labels.map((l) => (
@@ -44,6 +54,15 @@ export function TaskCardBody({ task, dragging }: { task: TaskT; dragging?: boole
               <path d="M12 7v5l3 2" />
             </svg>
             {formatShort(task.deadline)}
+          </span>
+        )}
+        {task.attachments.length > 0 && (
+          <span className="flex items-center gap-0.5 text-slate-400" title={`${task.attachments.length.toLocaleString("fa-IR")} تصویر`}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="m21 16-5-5-8 8" />
+            </svg>
+            {task.attachments.length.toLocaleString("fa-IR")}
           </span>
         )}
         {task.description && (

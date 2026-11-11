@@ -16,7 +16,7 @@ export interface BoardCardData {
   role: Role;
   taskCount: number;
   columns: { id: string; title: string; color: string; count: number }[];
-  members: { id: string; name: string; color: string }[];
+  members: { id: string; name: string; color: string; avatar: string | null }[];
 }
 
 export function BoardCard({ board, meId }: { board: BoardCardData; meId: string }) {

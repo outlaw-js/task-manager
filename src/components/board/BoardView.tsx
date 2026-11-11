@@ -42,7 +42,7 @@ function applyOrder(tasks: TaskT[], columnId: string, ids: string[]) {
   return tasks.map((t) => (index.has(t.id) ? { ...t, columnId, position: index.get(t.id)! } : t));
 }
 
-export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
+export function BoardView({ boardId, me, superAdmin = false }: { boardId: string; me: UserLite; superAdmin?: boolean }) {
   const notify = useToast();
   const router = useRouter();
   const openMenu = useContextMenu();
@@ -207,15 +207,6 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
     setTasks((prev) => (prev.some((t) => t.id === task.id) ? prev.map((t) => (t.id === task.id ? task : t)) : [...prev, task]));
   }
 
-  async function quickAdd(columnId: string, title: string) {
-    try {
-      const { task } = await api<{ task: TaskT }>(`/api/boards/${boardId}/tasks`, { body: { title, columnId } });
-      upsertTask(task);
-    } catch (err) {
-      notify(errorMessage(err));
-    }
-  }
-
   const setColumns = (fn: (cols: ColumnT[]) => ColumnT[]) => setBoard((b) => (b ? { ...b, columns: fn(b.columns) } : b));
 
   async function updateColumn(columnId: string, data: Partial<Pick<ColumnT, "title" | "color">>) {
@@ -335,7 +326,7 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
       { label: "حذف ددلاین", disabled: !task.deadline, onClick: () => patchTask(task, { deadline: null }) },
       "separator",
       { label: "کپی عنوان", onClick: () => navigator.clipboard?.writeText(task.title).then(() => notify("عنوان کپی شد", "success")) },
-      ...(canDeleteTask(task, me.id, myRole) ? [{ label: "حذف تسک", danger: true, onClick: () => deleteTask(task) }] : []),
+      ...(canDeleteTask(task, me.id, superAdmin) ? [{ label: "حذف تسک", danger: true, onClick: () => deleteTask(task) }] : []),
     ];
   }
 
@@ -473,7 +464,7 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
               canManage={manager}
               onOpenTask={(task) => setEditor({ task, columnId: task.columnId })}
               onTaskMenu={(e, task) => openMenu(e, taskMenu(task))}
-              onQuickAdd={quickAdd}
+              onAddTask={(columnId) => setEditor({ task: null, columnId })}
               onUpdate={updateColumn}
               onMove={moveColumn}
               onDelete={deleteColumn}
@@ -493,7 +484,9 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
           open
           board={boardWithTasks}
           task={editor.task}
-          canDelete={!!editor.task && canDeleteTask(editor.task, me.id, myRole)}
+          canDelete={!!editor.task && canDeleteTask(editor.task, me.id, superAdmin)}
+          meId={me.id}
+          superAdmin={superAdmin}
           defaultColumnId={editor.columnId}
           onClose={() => setEditor(null)}
           onSaved={upsertTask}

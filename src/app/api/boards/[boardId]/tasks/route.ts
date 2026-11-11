@@ -27,18 +27,17 @@ export const POST = handle(async (req: Request, { params }: Ctx) => {
     include: taskInclude,
   });
 
-  // Assignees hear "assigned to you"; everyone else on the board hears "new task".
-  const [board, members] = await Promise.all([
-    prisma.board.findUnique({ where: { id: boardId }, select: { name: true } }),
-    prisma.boardMember.findMany({ where: { boardId, userId: { not: user.id } }, select: { userId: true } }),
-  ]);
-  const url = `/boards/${boardId}?task=${task.id}`;
+  // Only the people the task is assigned to are notified (not the whole board).
   const assigned = task.assignees.map((a) => a.id).filter((id) => id !== user.id);
-  notifyUsers(assigned, { title: `تسک جدید برای شما · ${board?.name ?? ""}`, body: `${user.name}: ${task.title}`, url, tag: task.id });
-  notifyUsers(
-    members.map((m) => m.userId).filter((id) => !assigned.includes(id)),
-    { title: `تسک جدید · ${board?.name ?? ""}`, body: `${user.name}: ${task.title}`, url, tag: task.id },
-  );
+  if (assigned.length) {
+    const board = await prisma.board.findUnique({ where: { id: boardId }, select: { name: true } });
+    notifyUsers(assigned, {
+      title: `تسک جدید برای شما · ${board?.name ?? ""}`,
+      body: `${user.name}: ${task.title}`,
+      url: `/boards/${boardId}?task=${task.id}`,
+      tag: task.id,
+    });
+  }
 
   return NextResponse.json({ task }, { status: 201 });
 });

@@ -1,8 +1,18 @@
-import type { UserLite } from "@/lib/types";
+import { avatarUrl } from "@/lib/types";
 
-const SIZES = { sm: "h-6 w-6 text-[10px]", md: "h-8 w-8 text-xs", lg: "h-10 w-10 text-sm" };
+const SIZES = { sm: "h-6 w-6 text-[10px]", md: "h-8 w-8 text-xs", lg: "h-10 w-10 text-sm", xl: "h-20 w-20 text-2xl" };
 
-export function Avatar({ user, size = "md", ring }: { user: Pick<UserLite, "name" | "color">; size?: keyof typeof SIZES; ring?: boolean }) {
+type AvatarUser = { id?: string; name: string; color: string; avatar?: string | null };
+
+export function Avatar({ user, size = "md", ring }: { user: AvatarUser; size?: keyof typeof SIZES; ring?: boolean }) {
+  const src = user.id ? avatarUrl({ id: user.id, avatar: user.avatar }) : null;
+  const cls = `inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-bold text-white ${SIZES[size]} ${ring ? "ring-2 ring-white" : ""}`;
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt={user.name} title={user.name} loading="lazy" draggable={false} className={`${cls} bg-slate-200 object-cover`} />
+    );
+  }
   const initials = user.name
     .trim()
     .split(/\s+/)
@@ -10,19 +20,13 @@ export function Avatar({ user, size = "md", ring }: { user: Pick<UserLite, "name
     .map((p) => p[0])
     .join("‌");
   return (
-    <span
-      title={user.name}
-      className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-bold text-white ${SIZES[size]} ${
-        ring ? "ring-2 ring-white" : ""
-      }`}
-      style={{ backgroundColor: user.color }}
-    >
+    <span title={user.name} className={cls} style={{ backgroundColor: user.color }}>
       {initials}
     </span>
   );
 }
 
-export function AvatarStack({ users, max = 3, size = "sm" }: { users: Pick<UserLite, "id" | "name" | "color">[]; max?: number; size?: keyof typeof SIZES }) {
+export function AvatarStack({ users, max = 3, size = "sm" }: { users: (AvatarUser & { id: string })[]; max?: number; size?: keyof typeof SIZES }) {
   const shown = users.slice(0, max);
   const rest = users.length - shown.length;
   return (

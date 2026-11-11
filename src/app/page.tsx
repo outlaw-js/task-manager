@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isSuperAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Header } from "@/components/Header";
 import { NewBoardButton } from "@/components/NewBoardButton";
@@ -16,7 +16,7 @@ export default async function HomePage() {
     include: {
       _count: { select: { tasks: true } },
       columns: { orderBy: { position: "asc" }, select: { id: true, title: true, color: true, _count: { select: { tasks: true } } } },
-      members: { include: { user: { select: { id: true, name: true, color: true } } }, orderBy: { joinedAt: "asc" } },
+      members: { include: { user: { select: { id: true, name: true, color: true, avatar: true } } }, orderBy: { joinedAt: "asc" } },
     },
   });
 
@@ -24,7 +24,7 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-full">
-      <Header user={user} />
+      <Header user={user} superAdmin={isSuperAdmin(user.email)} />
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>

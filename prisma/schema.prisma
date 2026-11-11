@@ -26,12 +26,15 @@ model User {
   email        String        @unique
   passwordHash String
   color        String        @default("#6366f1")
+  /// Storage key of the profile photo under UPLOAD_DIR, if any.
+  avatar       String?
   createdAt    DateTime      @default(now())
   memberships  BoardMember[]
   ownedBoards  Board[]       @relation("BoardOwner")
   createdTasks Task[]        @relation("TaskCreator")
   assigned     Task[]        @relation("TaskAssignees")
   pushSubscriptions PushSubscription[]
+  attachments  Attachment[]
 }
 
 model Board {
@@ -98,6 +101,7 @@ model Task {
   creator     User?     @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   assignees   User[]    @relation("TaskAssignees")
   labels      Label[]
+  attachments Attachment[]
 
   @@index([columnId, position])
 }
@@ -112,4 +116,20 @@ model PushSubscription {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// An image attached to a task. The file lives on disk under UPLOAD_DIR at `storageKey`.
+model Attachment {
+  id         String   @id @default(cuid())
+  taskId     String
+  uploaderId String?
+  name       String
+  mimeType   String
+  size       Int
+  storageKey String   @unique
+  createdAt  DateTime @default(now())
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploader   User?    @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
 }

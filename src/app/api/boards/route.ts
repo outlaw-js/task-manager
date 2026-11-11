@@ -23,7 +23,7 @@ export const GET = handle(async () => {
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { tasks: true, members: true } },
-      members: { take: 5, include: { user: { select: { id: true, name: true, color: true } } } },
+      members: { take: 5, include: { user: { select: { id: true, name: true, color: true, avatar: true } } } },
     },
   });
   return NextResponse.json({ boards });

@@ -5,13 +5,29 @@ export interface UserLite {
   name: string;
   email: string;
   color: string;
+  /** Storage key of the profile photo; doubles as a cache-buster in the URL. */
+  avatar?: string | null;
 }
+
+export const avatarUrl = (user: { id: string; avatar?: string | null }) =>
+  user.avatar ? `/api/avatars/${user.id}?v=${encodeURIComponent(user.avatar.slice(-16))}` : null;
 
 export interface LabelT {
   id: string;
   name: string;
   color: string;
 }
+
+export interface AttachmentT {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  uploaderId: string | null;
+  createdAt: string;
+}
+
+export const attachmentUrl = (id: string) => `/api/attachments/${id}`;
 
 export interface TaskT {
   id: string;
@@ -26,6 +42,7 @@ export interface TaskT {
   creator: UserLite | null;
   assignees: UserLite[];
   labels: LabelT[];
+  attachments: AttachmentT[];
 }
 
 export interface ColumnT {
@@ -44,9 +61,9 @@ export interface MemberT {
 
 export const ROLE_LABELS: Record<Role, string> = { OWNER: "مالک", ADMIN: "ادمین", MEMBER: "کاربر" };
 
-/** Only a task's creator or the board owner may delete it. */
-export const canDeleteTask = (task: Pick<TaskT, "creator">, meId: string, role: Role | undefined) =>
-  role === "OWNER" || task.creator?.id === meId;
+/** Only a task's creator or a super admin may delete it. */
+export const canDeleteTask = (task: Pick<TaskT, "creator">, meId: string, superAdmin: boolean) =>
+  superAdmin || task.creator?.id === meId;
 
 /** Owner and admins manage members, columns and the board itself. */
 export const canManage = (role: Role | undefined) => role === "OWNER" || role === "ADMIN";
