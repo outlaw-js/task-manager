@@ -74,8 +74,8 @@ jobs:
       - name: Pull, build and reload on server
         uses: appleboy/ssh-action@v1.2.0
         env:
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          PM2_APP_NAME: ${{ secrets.PM2_APP_NAME || 'taskmanager' }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || vars.DEPLOY_PATH }}
+          PM2_APP_NAME: ${{ secrets.PM2_APP_NAME || vars.PM2_APP_NAME || 'taskmanager' }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
