@@ -3,12 +3,12 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
-const DEMO_PASSWORD = "demo1234";
+const DEMO_PASSWORD = "shafafidar";
 
 const people = [
-  { name: "مدیر سیستم", email: "admin@example.com", color: "#6366f1" },
-  { name: "سارا احمدی", email: "sara@example.com", color: "#ec4899" },
-  { name: "علی رضایی", email: "ali@example.com", color: "#10b981" },
+  { name: "مدیر سیستم", email: "abbas@task.com", color: "#6366f1" },
+  { name: "سارا احمدی", email: "pouriya@task.com", color: "#ec4899" },
+  { name: "علی رضایی", email: "millad@task.com", color: "#10b981" },
 ];
 
 const day = (n, hour = 18) => {
@@ -22,11 +22,19 @@ async function main() {
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
   const users = [];
   for (const p of people) {
-    users.push(await prisma.user.upsert({ where: { email: p.email }, update: {}, create: { ...p, passwordHash } }));
+    users.push(
+      await prisma.user.upsert({
+        where: { email: p.email },
+        update: {},
+        create: { ...p, passwordHash },
+      }),
+    );
   }
   const [admin, sara, ali] = users;
 
-  await prisma.board.deleteMany({ where: { name: "پروژه وب‌سایت شرکت", ownerId: admin.id } });
+  await prisma.board.deleteMany({
+    where: { name: "پروژه وب‌سایت شرکت", ownerId: admin.id },
+  });
   const board = await prisma.board.create({
     data: {
       name: "پروژه وب‌سایت شرکت",
@@ -62,13 +70,62 @@ async function main() {
   const col = board.columns;
   const label = Object.fromEntries(board.labels.map((l) => [l.name, l.id]));
   const tasks = [
-    { title: "طراحی صفحه اصلی", description: "وایرفریم و طرح نهایی صفحه اصلی در فیگما", priority: "HIGH", deadline: day(3), column: 0, assignees: [sara], labels: ["طراحی"] },
-    { title: "نوشتن مستندات API", priority: "LOW", deadline: day(10), column: 0, assignees: [ali], labels: ["مستندات"] },
-    { title: "صفحه تماس با ما", priority: "MEDIUM", column: 0, assignees: [], labels: ["ویژگی جدید"] },
-    { title: "پیاده‌سازی ورود کاربران", description: "ورود با ایمیل و رمز عبور، همراه با بازیابی رمز", priority: "URGENT", deadline: day(1), column: 1, assignees: [ali, admin], labels: ["ویژگی جدید"] },
-    { title: "رفع مشکل نمایش در موبایل", priority: "HIGH", deadline: day(-1), column: 1, assignees: [sara], labels: ["باگ"] },
-    { title: "بهینه‌سازی تصاویر", priority: "MEDIUM", deadline: day(5), column: 2, assignees: [ali], labels: [] },
-    { title: "راه‌اندازی دیتابیس", priority: "HIGH", column: 3, assignees: [admin], labels: [] },
+    {
+      title: "طراحی صفحه اصلی",
+      description: "وایرفریم و طرح نهایی صفحه اصلی در فیگما",
+      priority: "HIGH",
+      deadline: day(3),
+      column: 0,
+      assignees: [sara],
+      labels: ["طراحی"],
+    },
+    {
+      title: "نوشتن مستندات API",
+      priority: "LOW",
+      deadline: day(10),
+      column: 0,
+      assignees: [ali],
+      labels: ["مستندات"],
+    },
+    {
+      title: "صفحه تماس با ما",
+      priority: "MEDIUM",
+      column: 0,
+      assignees: [],
+      labels: ["ویژگی جدید"],
+    },
+    {
+      title: "پیاده‌سازی ورود کاربران",
+      description: "ورود با ایمیل و رمز عبور، همراه با بازیابی رمز",
+      priority: "URGENT",
+      deadline: day(1),
+      column: 1,
+      assignees: [ali, admin],
+      labels: ["ویژگی جدید"],
+    },
+    {
+      title: "رفع مشکل نمایش در موبایل",
+      priority: "HIGH",
+      deadline: day(-1),
+      column: 1,
+      assignees: [sara],
+      labels: ["باگ"],
+    },
+    {
+      title: "بهینه‌سازی تصاویر",
+      priority: "MEDIUM",
+      deadline: day(5),
+      column: 2,
+      assignees: [ali],
+      labels: [],
+    },
+    {
+      title: "راه‌اندازی دیتابیس",
+      priority: "HIGH",
+      column: 3,
+      assignees: [admin],
+      labels: [],
+    },
   ];
 
   const positions = {};
@@ -90,7 +147,9 @@ async function main() {
       },
     });
   }
-  console.log(`Seeded ${users.length} users and board "${board.name}" with ${tasks.length} tasks.`);
+  console.log(
+    `Seeded ${users.length} users and board "${board.name}" with ${tasks.length} tasks.`,
+  );
 }
 
 main()
