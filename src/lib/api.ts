@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { BoardRole } from "@prisma/client";
 import { getCurrentUser } from "./auth";
 import { prisma } from "./prisma";
 
@@ -31,8 +32,14 @@ export async function requireUser() {
   return user;
 }
 
-/** Ensures the current user is a member of the board; returns user + role. */
-export async function requireBoard(boardId: string, opts: { owner?: boolean } = {}) {
+/** Owner and admins manage the board (members, columns, name); plain members work on tasks. */
+export const canManage = (role: BoardRole) => role === "OWNER" || role === "ADMIN";
+
+/**
+ * Ensures the current user is a member of the board; returns user + role.
+ * `owner` limits the call to the board owner, `manage` to the owner or an admin.
+ */
+export async function requireBoard(boardId: string, opts: { owner?: boolean; manage?: boolean } = {}) {
   const user = await requireUser();
   const membership = await prisma.boardMember.findUnique({
     where: { boardId_userId: { boardId, userId: user.id } },
@@ -40,6 +47,9 @@ export async function requireBoard(boardId: string, opts: { owner?: boolean } = 
   if (!membership) throw new HttpError(404, "برد پیدا نشد");
   if (opts.owner && membership.role !== "OWNER") {
     throw new HttpError(403, "فقط مالک برد این دسترسی را دارد");
+  }
+  if (opts.manage && !canManage(membership.role)) {
+    throw new HttpError(403, "فقط مالک یا ادمین برد این دسترسی را دارد");
   }
   return { user, role: membership.role };
 }

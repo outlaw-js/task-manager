@@ -5,6 +5,7 @@ import { Modal } from "../Modal";
 import { Avatar } from "../Avatar";
 import { DeadlinePicker } from "./JalaliDatePicker";
 import { useToast } from "../Toast";
+import { SearchSelect } from "../SearchSelect";
 import { api, errorMessage } from "@/lib/client";
 import { formatFull } from "@/lib/date";
 import { PRIORITIES, type BoardT, type LabelT, type Priority, type TaskT } from "@/lib/types";
@@ -12,6 +13,8 @@ import { PRIORITIES, type BoardT, type LabelT, type Priority, type TaskT } from 
 interface Props {
   board: BoardT;
   task: TaskT | null;
+  /** Creator of the task or board owner. */
+  canDelete: boolean;
   defaultColumnId: string;
   open: boolean;
   onClose: () => void;
@@ -49,13 +52,10 @@ function presetDeadline(daysFromToday: number) {
   return d.toISOString();
 }
 
-const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
-
-export function TaskModal({ board, task, defaultColumnId, open, onClose, onSaved, onDeleted, onLabelCreated }: Props) {
+export function TaskModal({ board, task, canDelete, defaultColumnId, open, onClose, onSaved, onDeleted, onLabelCreated }: Props) {
   const notify = useToast();
   const [form, setForm] = useState<FormState>(() => initialState(task, defaultColumnId));
   const [saving, setSaving] = useState(false);
-  const [newLabel, setNewLabel] = useState("");
 
   useEffect(() => {
     if (open) setForm(initialState(task, defaultColumnId));
@@ -91,17 +91,14 @@ export function TaskModal({ board, task, defaultColumnId, open, onClose, onSaved
     }
   }
 
-  async function createLabel() {
-    const name = newLabel.trim();
-    if (!name) return;
+  async function createLabel(name: string) {
     try {
       const palette = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#0ea5e9", "#ec4899"];
       const { label } = await api<{ label: LabelT }>(`/api/boards/${board.id}/labels`, {
         body: { name, color: palette[board.labels.length % palette.length] },
       });
       onLabelCreated(label);
-      set("labelIds", [...form.labelIds, label.id]);
-      setNewLabel("");
+      return label.id;
     } catch (err) {
       notify(errorMessage(err));
     }
@@ -164,63 +161,38 @@ export function TaskModal({ board, task, defaultColumnId, open, onClose, onSaved
           </div>
         </div>
 
-        <div>
-          <span className="label">مسئولین</span>
-          <div className="flex flex-wrap gap-2">
-            {board.members.map(({ user }) => {
-              const on = form.assigneeIds.includes(user.id);
-              return (
-                <button
-                  type="button"
-                  key={user.id}
-                  onClick={() => set("assigneeIds", toggle(form.assigneeIds, user.id))}
-                  className={`flex items-center gap-2 rounded-full border py-1 pe-3 ps-1 text-sm transition ${
-                    on ? "border-brand-500 bg-brand-50 text-brand-700" : "border-slate-200 text-slate-600 hover:border-slate-300"
-                  }`}
-                >
-                  <Avatar user={user} size="sm" />
-                  {user.name}
-                  {on && <span aria-hidden>✓</span>}
-                </button>
-              );
-            })}
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="task-assignees">مسئولین</label>
+            <SearchSelect
+              id="task-assignees"
+              placeholder="جستجوی نام یا ایمیل…"
+              value={form.assigneeIds}
+              onChange={(v) => set("assigneeIds", v)}
+              options={board.members.map(({ user }) => ({
+                value: user.id,
+                label: user.name,
+                hint: user.email,
+                icon: <Avatar user={user} size="sm" />,
+              }))}
+            />
           </div>
-        </div>
-
-        <div>
-          <span className="label">برچسب‌ها</span>
-          <div className="flex flex-wrap items-center gap-2">
-            {board.labels.map((l) => {
-              const on = form.labelIds.includes(l.id);
-              return (
-                <button
-                  type="button"
-                  key={l.id}
-                  onClick={() => set("labelIds", toggle(form.labelIds, l.id))}
-                  className="chip border !px-3 !py-1 text-sm transition"
-                  style={on ? { backgroundColor: l.color, borderColor: l.color, color: "#fff" } : { borderColor: `${l.color}66`, color: l.color }}
-                >
-                  {l.name}
-                </button>
-              );
-            })}
-            <div className="flex items-center gap-1">
-              <input
-                className="input !w-32 !py-1 text-xs"
-                placeholder="برچسب جدید…"
-                value={newLabel}
-                onChange={(e) => setNewLabel(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    createLabel();
-                  }
-                }}
-              />
-              {newLabel.trim() && (
-                <button type="button" className="btn-secondary !px-2 !py-1 text-xs" onClick={createLabel}>افزودن</button>
-              )}
-            </div>
+          <div>
+            <label className="label" htmlFor="task-labels">برچسب‌ها</label>
+            <SearchSelect
+              id="task-labels"
+              placeholder="جستجو یا ساخت برچسب…"
+              value={form.labelIds}
+              onChange={(v) => set("labelIds", v)}
+              onCreate={createLabel}
+              createLabel={(t) => `ساخت برچسب «${t}»`}
+              options={board.labels.map((l) => ({
+                value: l.id,
+                label: l.name,
+                color: l.color,
+                icon: <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: l.color }} />,
+              }))}
+            />
           </div>
         </div>
 
@@ -232,7 +204,7 @@ export function TaskModal({ board, task, defaultColumnId, open, onClose, onSaved
         )}
 
         <div className="flex items-center gap-2 border-t border-slate-100 pt-4">
-          {task && (
+          {task && canDelete && (
             <button type="button" className="btn-danger" onClick={remove}>حذف تسک</button>
           )}
           <span className="flex-1" />

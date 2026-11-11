@@ -60,7 +60,15 @@ export function TaskCardBody({ task, dragging }: { task: TaskT; dragging?: boole
   );
 }
 
-export function SortableTaskCard({ task, onOpen }: { task: TaskT; onOpen: (t: TaskT) => void }) {
+export function SortableTaskCard({
+  task,
+  onOpen,
+  onContextMenu,
+}: {
+  task: TaskT;
+  onOpen: (t: TaskT) => void;
+  onContextMenu: (e: React.MouseEvent, t: TaskT) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: "task" },
@@ -72,6 +80,7 @@ export function SortableTaskCard({ task, onOpen }: { task: TaskT; onOpen: (t: Ta
       {...attributes}
       {...listeners}
       onClick={() => onOpen(task)}
+      onContextMenu={(e) => onContextMenu(e, task)}
       onKeyDown={(e) => {
         listeners?.onKeyDown?.(e);
         if (e.key === "Enter" && !e.defaultPrevented) onOpen(task);

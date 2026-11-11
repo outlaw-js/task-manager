@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ columnId: string }> };
 async function findColumn(columnId: string) {
   const column = await prisma.column.findUnique({ where: { id: columnId } });
   if (!column) throw new HttpError(404, "ستون پیدا نشد");
-  await requireBoard(column.boardId);
+  await requireBoard(column.boardId, { manage: true });
   return column;
 }
 

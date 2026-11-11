@@ -2,19 +2,20 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { HttpError, handle, readJson, requireBoard } from "@/lib/api";
 import { parseTaskInput, taskInclude } from "@/lib/board";
+import { notifyUsers } from "@/lib/push";
 
 type Ctx = { params: Promise<{ taskId: string }> };
 
 async function findTask(taskId: string) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new HttpError(404, "تسک پیدا نشد");
-  await requireBoard(task.boardId);
-  return task;
+  const { user, role } = await requireBoard(task.boardId);
+  return { task, user, role };
 }
 
 export const PATCH = handle(async (req: Request, { params }: Ctx) => {
   const { taskId } = await params;
-  const existing = await findTask(taskId);
+  const { task: existing, user } = await findTask(taskId);
   const body = await readJson(req);
   const { assigneeIds, labelIds, columnId, ...fields } = await parseTaskInput(existing.boardId, body, false);
 
@@ -24,6 +25,10 @@ export const PATCH = handle(async (req: Request, { params }: Ctx) => {
     const last = await prisma.task.findFirst({ where: { columnId }, orderBy: { position: "desc" } });
     position = (last?.position ?? -1) + 1;
   }
+
+  const before = assigneeIds
+    ? (await prisma.task.findUnique({ where: { id: taskId }, select: { assignees: { select: { id: true } } } }))?.assignees.map((a) => a.id) ?? []
+    : [];
 
   const task = await prisma.task.update({
     where: { id: taskId },
@@ -36,12 +41,28 @@ export const PATCH = handle(async (req: Request, { params }: Ctx) => {
     },
     include: taskInclude,
   });
+
+  // People newly assigned by someone else get a notification.
+  const added = (assigneeIds ?? []).filter((id) => !before.includes(id) && id !== user.id);
+  if (added.length) {
+    const board = await prisma.board.findUnique({ where: { id: task.boardId }, select: { name: true } });
+    notifyUsers(added, {
+      title: `تسک به شما واگذار شد · ${board?.name ?? ""}`,
+      body: `${user.name}: ${task.title}`,
+      url: `/boards/${task.boardId}?task=${task.id}`,
+      tag: task.id,
+    });
+  }
   return NextResponse.json({ task });
 });
 
 export const DELETE = handle(async (_req: Request, { params }: Ctx) => {
   const { taskId } = await params;
-  await findTask(taskId);
+  const { task, user, role } = await findTask(taskId);
+  // Only the task's creator or the board owner may delete it.
+  if (task.creatorId !== user.id && role !== "OWNER") {
+    throw new HttpError(403, "فقط سازنده تسک یا مالک برد می‌تواند آن را حذف کند");
+  }
   await prisma.task.delete({ where: { id: taskId } });
   return NextResponse.json({ ok: true });
 });

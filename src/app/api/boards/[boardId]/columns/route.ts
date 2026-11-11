@@ -7,7 +7,7 @@ type Ctx = { params: Promise<{ boardId: string }> };
 
 export const POST = handle(async (req: Request, { params }: Ctx) => {
   const { boardId } = await params;
-  await requireBoard(boardId);
+  await requireBoard(boardId, { manage: true });
   const body = await readJson(req);
   const last = await prisma.column.findFirst({ where: { boardId }, orderBy: { position: "desc" } });
   const column = await prisma.column.create({

@@ -35,10 +35,21 @@ export interface ColumnT {
   position: number;
 }
 
+export type Role = "OWNER" | "ADMIN" | "MEMBER";
+
 export interface MemberT {
-  role: "OWNER" | "MEMBER";
+  role: Role;
   user: UserLite;
 }
+
+export const ROLE_LABELS: Record<Role, string> = { OWNER: "مالک", ADMIN: "ادمین", MEMBER: "کاربر" };
+
+/** Only a task's creator or the board owner may delete it. */
+export const canDeleteTask = (task: Pick<TaskT, "creator">, meId: string, role: Role | undefined) =>
+  role === "OWNER" || task.creator?.id === meId;
+
+/** Owner and admins manage members, columns and the board itself. */
+export const canManage = (role: Role | undefined) => role === "OWNER" || role === "ADMIN";
 
 export interface BoardT {
   id: string;

@@ -10,7 +10,8 @@
     "db:up": "docker compose up -d",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.mjs",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "push:keys": "node scripts/generate-vapid-keys.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

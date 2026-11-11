@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Header } from "@/components/Header";
-import { AvatarStack } from "@/components/Avatar";
 import { NewBoardButton } from "@/components/NewBoardButton";
+import { BoardCard } from "@/components/BoardCard";
 import { faNum } from "@/lib/date";
 
 export default async function HomePage() {
@@ -45,27 +44,19 @@ export default async function HomePage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {boards.map((b) => (
-              <Link
+              <BoardCard
                 key={b.id}
-                href={`/boards/${b.id}`}
-                className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-500/40 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <h2 className="font-bold group-hover:text-brand-700">{b.name}</h2>
-                  {b.ownerId === user.id && <span className="chip bg-brand-50 text-brand-700">مالک</span>}
-                </div>
-                {b.description && <p className="mt-1 line-clamp-2 text-sm text-slate-500">{b.description}</p>}
-                <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-slate-100">
-                  {b._count.tasks > 0 &&
-                    b.columns.map((c) => (
-                      <span key={c.id} title={`${c.title}: ${faNum(c._count.tasks)}`} style={{ width: `${(c._count.tasks / b._count.tasks) * 100}%`, backgroundColor: c.color }} />
-                    ))}
-                </div>
-                <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-                  <span>{faNum(b._count.tasks)} تسک</span>
-                  <AvatarStack users={b.members.map((m) => m.user)} max={4} />
-                </div>
-              </Link>
+                meId={user.id}
+                board={{
+                  id: b.id,
+                  name: b.name,
+                  description: b.description,
+                  role: b.members.find((m) => m.userId === user.id)?.role ?? "MEMBER",
+                  taskCount: b._count.tasks,
+                  columns: b.columns.map((c) => ({ id: c.id, title: c.title, color: c.color, count: c._count.tasks })),
+                  members: b.members.map((m) => m.user),
+                }}
+              />
             ))}
           </div>
         )}

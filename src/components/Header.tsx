@@ -3,17 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Avatar } from "./Avatar";
+import { NotificationBell, PwaPrompts, disablePush } from "./PwaPrompts";
 import { api } from "@/lib/client";
 import type { UserLite } from "@/lib/types";
 
 export function Header({ user, children }: { user: UserLite; children?: React.ReactNode }) {
   const router = useRouter();
   async function logout() {
+    // Stop this device's notifications first so the next person on it doesn't get them.
+    await disablePush().catch(() => {});
     await api("/api/auth/logout", { method: "POST" });
     router.replace("/login");
     router.refresh();
   }
   return (
+    <>
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2 font-bold text-brand-700">
@@ -27,6 +31,7 @@ export function Header({ user, children }: { user: UserLite; children?: React.Re
         </Link>
         <div className="min-w-0 flex-1">{children}</div>
         <div className="flex items-center gap-2">
+          <NotificationBell />
           <Avatar user={user} />
           <span className="hidden text-sm font-medium md:inline">{user.name}</span>
           <button onClick={logout} className="btn-ghost text-xs">
@@ -35,5 +40,8 @@ export function Header({ user, children }: { user: UserLite; children?: React.Re
         </div>
       </div>
     </header>
+    {/* Outside <header>: its backdrop-blur would make it the containing block for this fixed popup. */}
+    <PwaPrompts />
+    </>
   );
 }

@@ -2,14 +2,24 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { SortableTaskCard } from "./TaskCard";
+import { MenuButton, useContextMenu, type MenuEntry } from "../ContextMenu";
 import { faNum } from "@/lib/date";
 import type { ColumnT, TaskT } from "@/lib/types";
 
 export const columnDropId = (id: string) => `col:${id}`;
 
-const COLUMN_COLORS = ["#64748b", "#3b82f6", "#a855f7", "#22c55e", "#f59e0b", "#ef4444", "#ec4899", "#14b8a6"];
+const COLUMN_COLORS: [string, string][] = [
+  ["#64748b", "خاکستری"],
+  ["#3b82f6", "آبی"],
+  ["#a855f7", "بنفش"],
+  ["#22c55e", "سبز"],
+  ["#f59e0b", "نارنجی"],
+  ["#ef4444", "قرمز"],
+  ["#ec4899", "صورتی"],
+  ["#14b8a6", "فیروزه‌ای"],
+];
 
 interface Props {
   column: ColumnT;
@@ -17,27 +27,45 @@ interface Props {
   total: number;
   isFirst: boolean;
   isLast: boolean;
+  canManage: boolean;
   onOpenTask: (t: TaskT) => void;
+  onTaskMenu: (e: React.MouseEvent, t: TaskT) => void;
   onQuickAdd: (columnId: string, title: string) => Promise<void>;
   onUpdate: (columnId: string, data: Partial<Pick<ColumnT, "title" | "color">>) => void;
   onMove: (columnId: string, dir: -1 | 1) => void;
   onDelete: (columnId: string) => void;
 }
 
-export function Column({ column, tasks, total, isFirst, isLast, onOpenTask, onQuickAdd, onUpdate, onMove, onDelete }: Props) {
+export function Column({ column, tasks, total, isFirst, isLast, canManage, onOpenTask, onTaskMenu, onQuickAdd, onUpdate, onMove, onDelete }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: columnDropId(column.id), data: { type: "column" } });
+  const openMenu = useContextMenu();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [renaming, setRenaming] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (e: MouseEvent) => !menuRef.current?.contains(e.target as Node) && setMenuOpen(false);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [menuOpen]);
+  const menuItems = (): MenuEntry[] => {
+    const items: MenuEntry[] = [{ label: "افزودن تسک", icon: "+", onClick: () => setAdding(true) }];
+    if (!canManage) return items;
+    return [
+      ...items,
+      "separator",
+      { label: "تغییر نام", onClick: () => setRenaming(true) },
+      {
+        label: "رنگ ستون",
+        icon: <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: column.color }} />,
+        children: COLUMN_COLORS.map(([c, name]) => ({
+          label: name,
+          checked: c === column.color,
+          icon: <span className="h-3 w-3 rounded-full" style={{ backgroundColor: c }} />,
+          onClick: () => onUpdate(column.id, { color: c }),
+        })),
+      },
+      { label: "انتقال به راست", disabled: isFirst, onClick: () => onMove(column.id, -1) },
+      { label: "انتقال به چپ", disabled: isLast, onClick: () => onMove(column.id, 1) },
+      "separator",
+      { label: "حذف ستون", danger: true, onClick: () => onDelete(column.id) },
+    ];
+  };
 
   async function submitQuickAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -48,7 +76,7 @@ export function Column({ column, tasks, total, isFirst, isLast, onOpenTask, onQu
 
   return (
     <section className="flex max-h-full w-[290px] shrink-0 flex-col rounded-2xl bg-slate-200/60">
-      <header className="flex items-center gap-2 px-3 pb-2 pt-3">
+      <header className="flex items-center gap-2 px-3 pb-2 pt-3" onContextMenu={(e) => openMenu(e, menuItems())}>
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: column.color }} />
         {renaming ? (
           <input
@@ -66,41 +94,14 @@ export function Column({ column, tasks, total, isFirst, isLast, onOpenTask, onQu
             }}
           />
         ) : (
-          <h3 className="min-w-0 flex-1 truncate text-sm font-bold" onDoubleClick={() => setRenaming(true)}>
+          <h3 className="min-w-0 flex-1 truncate text-sm font-bold" onDoubleClick={() => canManage && setRenaming(true)}>
             {column.title}
           </h3>
         )}
         <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-medium text-slate-500">
           {tasks.length === total ? faNum(total) : `${faNum(tasks.length)} از ${faNum(total)}`}
         </span>
-        <div className="relative" ref={menuRef}>
-          <button className="btn-ghost !p-1" onClick={() => setMenuOpen((v) => !v)} aria-label="تنظیمات ستون">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="5" cy="12" r="1.8" />
-              <circle cx="12" cy="12" r="1.8" />
-              <circle cx="19" cy="12" r="1.8" />
-            </svg>
-          </button>
-          {menuOpen && (
-            <div className="absolute left-0 top-8 z-20 w-48 rounded-xl border border-slate-200 bg-white p-1.5 text-sm shadow-lg">
-              <MenuItem onClick={() => (setRenaming(true), setMenuOpen(false))}>تغییر نام</MenuItem>
-              <MenuItem disabled={isFirst} onClick={() => (onMove(column.id, -1), setMenuOpen(false))}>انتقال به راست</MenuItem>
-              <MenuItem disabled={isLast} onClick={() => (onMove(column.id, 1), setMenuOpen(false))}>انتقال به چپ</MenuItem>
-              <div className="flex flex-wrap gap-1.5 px-2 py-2">
-                {COLUMN_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    className={`h-5 w-5 rounded-full ${c === column.color ? "ring-2 ring-slate-400 ring-offset-1" : ""}`}
-                    style={{ backgroundColor: c }}
-                    onClick={() => onUpdate(column.id, { color: c })}
-                    aria-label="رنگ ستون"
-                  />
-                ))}
-              </div>
-              <MenuItem danger onClick={() => (onDelete(column.id), setMenuOpen(false))}>حذف ستون</MenuItem>
-            </div>
-          )}
-        </div>
+        <MenuButton items={menuItems} label="تنظیمات ستون" />
       </header>
 
       <div
@@ -111,7 +112,7 @@ export function Column({ column, tasks, total, isFirst, isLast, onOpenTask, onQu
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((t) => (
-            <SortableTaskCard key={t.id} task={t} onOpen={onOpenTask} />
+            <SortableTaskCard key={t.id} task={t} onOpen={onOpenTask} onContextMenu={onTaskMenu} />
           ))}
         </SortableContext>
         {tasks.length === 0 && (
@@ -150,16 +151,3 @@ export function Column({ column, tasks, total, isFirst, isLast, onOpenTask, onQu
   );
 }
 
-function MenuItem({ children, onClick, disabled, danger }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
-  return (
-    <button
-      disabled={disabled}
-      onClick={onClick}
-      className={`block w-full rounded-lg px-2.5 py-1.5 text-right transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 ${
-        danger ? "text-red-600 hover:bg-red-50" : ""
-      }`}
-    >
-      {children}
-    </button>
-  );
-}

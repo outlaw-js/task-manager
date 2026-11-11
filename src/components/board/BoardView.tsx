@@ -15,17 +15,19 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Column, columnDropId } from "./Column";
 import { TaskCardBody } from "./TaskCard";
 import { TaskModal } from "./TaskModal";
 import { FilterBar } from "./FilterBar";
 import { MembersModal } from "./MembersModal";
 import { LabelsModal } from "./LabelsModal";
-import { AvatarStack } from "../Avatar";
+import { Avatar, AvatarStack } from "../Avatar";
 import { useToast } from "../Toast";
+import { MenuButton, useContextMenu, type MenuEntry } from "../ContextMenu";
 import { api, errorMessage } from "@/lib/client";
 import { EMPTY_FILTERS, compareTasks, matchesFilters, type Filters, type SortMode } from "@/lib/filters";
-import type { BoardT, ColumnT, LabelT, TaskT, UserLite } from "@/lib/types";
+import { PRIORITIES, ROLE_LABELS, canDeleteTask, canManage, type BoardT, type ColumnT, type LabelT, type TaskT, type UserLite } from "@/lib/types";
 
 /** Task ids of one column in manual (position) order. */
 const orderedIds = (tasks: TaskT[], columnId: string) =>
@@ -42,6 +44,8 @@ function applyOrder(tasks: TaskT[], columnId: string, ids: string[]) {
 
 export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
   const notify = useToast();
+  const router = useRouter();
+  const openMenu = useContextMenu();
   const [board, setBoard] = useState<BoardT | null>(null);
   const [tasks, setTasksState] = useState<TaskT[]>([]);
   const tasksRef = useRef<TaskT[]>([]);
@@ -73,6 +77,18 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A notification links to /boards/<id>?task=<taskId>: open that task once the board is loaded.
+  const openedFromLink = useRef(false);
+  useEffect(() => {
+    if (!board || openedFromLink.current) return;
+    const taskId = new URLSearchParams(window.location.search).get("task");
+    if (!taskId) return;
+    openedFromLink.current = true;
+    const task = tasksRef.current.find((t) => t.id === taskId);
+    if (task) setEditor({ task, columnId: task.columnId });
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [board]);
 
   // Remember sort/filter choices per board in this browser.
   const storageKey = `board-view:${boardId}`;
@@ -248,6 +264,145 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
     }
   }
 
+  async function patchTask(task: TaskT, body: Record<string, unknown>) {
+    try {
+      const { task: saved } = await api<{ task: TaskT }>(`/api/tasks/${task.id}`, { method: "PATCH", body });
+      upsertTask(saved);
+    } catch (err) {
+      notify(errorMessage(err));
+    }
+  }
+
+  async function deleteTask(task: TaskT) {
+    if (!confirm(`تسک «${task.title}» حذف شود؟`)) return;
+    try {
+      await api(`/api/tasks/${task.id}`, { method: "DELETE" });
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+    } catch (err) {
+      notify(errorMessage(err));
+    }
+  }
+
+  function taskMenu(task: TaskT): MenuEntry[] {
+    if (!board) return [];
+    const assigneeIds = task.assignees.map((a) => a.id);
+    const toggleAssignee = (id: string) =>
+      patchTask(task, { assigneeIds: assigneeIds.includes(id) ? assigneeIds.filter((x) => x !== id) : [...assigneeIds, id] });
+    return [
+      { label: "باز کردن و ویرایش", onClick: () => setEditor({ task, columnId: task.columnId }) },
+      "separator",
+      {
+        label: "انتقال به ستون",
+        children: board.columns.map((c) => ({
+          label: c.title,
+          checked: c.id === task.columnId,
+          icon: <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />,
+          onClick: () => c.id !== task.columnId && patchTask(task, { columnId: c.id }),
+        })),
+      },
+      {
+        label: "اولویت",
+        children: PRIORITIES.map((p) => ({
+          label: p.label,
+          checked: p.value === task.priority,
+          icon: <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color }} />,
+          onClick: () => p.value !== task.priority && patchTask(task, { priority: p.value }),
+        })),
+      },
+      {
+        label: "مسئولین",
+        children: board.members.map(({ user }) => ({
+          label: user.id === me.id ? `${user.name} (من)` : user.name,
+          checked: assigneeIds.includes(user.id),
+          icon: <Avatar user={user} size="sm" />,
+          onClick: () => toggleAssignee(user.id),
+        })),
+      },
+      {
+        label: "برچسب‌ها",
+        disabled: board.labels.length === 0,
+        children: board.labels.map((l) => {
+          const ids = task.labels.map((x) => x.id);
+          const on = ids.includes(l.id);
+          return {
+            label: l.name,
+            checked: on,
+            icon: <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: l.color }} />,
+            onClick: () => patchTask(task, { labelIds: on ? ids.filter((x) => x !== l.id) : [...ids, l.id] }),
+          };
+        }),
+      },
+      { label: "حذف ددلاین", disabled: !task.deadline, onClick: () => patchTask(task, { deadline: null }) },
+      "separator",
+      { label: "کپی عنوان", onClick: () => navigator.clipboard?.writeText(task.title).then(() => notify("عنوان کپی شد", "success")) },
+      ...(canDeleteTask(task, me.id, myRole) ? [{ label: "حذف تسک", danger: true, onClick: () => deleteTask(task) }] : []),
+    ];
+  }
+
+  async function renameBoard() {
+    if (!board) return;
+    const name = prompt("نام جدید برد:", board.name)?.trim();
+    if (!name || name === board.name) return;
+    try {
+      await api(`/api/boards/${boardId}`, { method: "PATCH", body: { name } });
+      setBoard((b) => (b ? { ...b, name } : b));
+      router.refresh();
+    } catch (err) {
+      notify(errorMessage(err));
+    }
+  }
+
+  async function editDescription() {
+    if (!board) return;
+    const value = prompt("توضیحات برد:", board.description ?? "");
+    if (value === null) return;
+    try {
+      await api(`/api/boards/${boardId}`, { method: "PATCH", body: { description: value.trim() || null } });
+      setBoard((b) => (b ? { ...b, description: value.trim() || null } : b));
+    } catch (err) {
+      notify(errorMessage(err));
+    }
+  }
+
+  async function deleteBoard() {
+    if (!board) return;
+    if (!confirm(`برد «${board.name}» با همه‌ی ستون‌ها و ${tasks.length.toLocaleString("fa-IR")} تسکش برای همیشه حذف شود؟\nاین کار قابل بازگشت نیست.`)) return;
+    try {
+      await api(`/api/boards/${boardId}`, { method: "DELETE" });
+      notify("برد حذف شد", "success");
+      router.replace("/");
+      router.refresh();
+    } catch (err) {
+      notify(errorMessage(err));
+    }
+  }
+
+  async function leaveBoard() {
+    if (!confirm("از این برد خارج می‌شوید؟")) return;
+    try {
+      await api(`/api/boards/${boardId}/members/${me.id}`, { method: "DELETE" });
+      router.replace("/");
+      router.refresh();
+    } catch (err) {
+      notify(errorMessage(err));
+    }
+  }
+
+  function boardMenu(): MenuEntry[] {
+    const items: MenuEntry[] = [];
+    if (manager) {
+      items.push({ label: "تغییر نام برد", onClick: renameBoard }, { label: "ویرایش توضیحات", onClick: editDescription }, "separator");
+    }
+    items.push({ label: "اعضا و نقش‌ها", onClick: () => setPanel("members") }, { label: "برچسب‌ها", onClick: () => setPanel("labels") });
+    if (manager) items.push({ label: "ستون جدید", onClick: addColumn });
+    items.push("separator");
+    items.push(myRole === "OWNER" ? { label: "حذف برد", danger: true, onClick: deleteBoard } : { label: "خروج از برد", danger: true, onClick: leaveBoard });
+    return items;
+  }
+
+  const myRole = board?.members.find((m) => m.user.id === me.id)?.role;
+  const manager = canManage(myRole);
+
   if (loadError) {
     return <div className="flex flex-1 items-center justify-center text-red-600">{loadError}</div>;
   }
@@ -267,8 +422,11 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 bg-white px-4 pt-4 sm:px-6">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-bold">{board.name}</h1>
+        <div className="min-w-0 flex-1" onContextMenu={(e) => openMenu(e, boardMenu())}>
+          <div className="flex items-center gap-2">
+            <h1 className="truncate text-xl font-bold">{board.name}</h1>
+            {myRole && <span className="chip bg-slate-100 text-slate-500">{ROLE_LABELS[myRole]}</span>}
+          </div>
           {board.description && <p className="truncate text-sm text-slate-500">{board.description}</p>}
         </div>
         <button className="flex items-center gap-2 rounded-full py-1 pe-1 ps-3 text-sm text-slate-600 hover:bg-slate-100" onClick={() => setPanel("members")}>
@@ -279,6 +437,7 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
         <button className="btn-primary" onClick={() => setEditor({ task: null, columnId: board.columns[0]?.id })}>
           <span className="text-lg leading-none">+</span> تسک جدید
         </button>
+        <MenuButton items={boardMenu} label="تنظیمات برد" />
       </div>
 
       <FilterBar
@@ -311,7 +470,9 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
               total={visible.totals[c.id] ?? 0}
               isFirst={i === 0}
               isLast={i === board.columns.length - 1}
+              canManage={manager}
               onOpenTask={(task) => setEditor({ task, columnId: task.columnId })}
+              onTaskMenu={(e, task) => openMenu(e, taskMenu(task))}
               onQuickAdd={quickAdd}
               onUpdate={updateColumn}
               onMove={moveColumn}
@@ -322,9 +483,9 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
             {activeTask ? <div className="w-[274px]"><TaskCardBody task={activeTask} dragging /></div> : null}
           </DragOverlay>
         </DndContext>
-        <button onClick={addColumn} className="flex h-12 w-[290px] shrink-0 items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-slate-300 text-sm text-slate-500 transition hover:border-brand-500 hover:text-brand-600">
+        {manager && <button onClick={addColumn} className="flex h-12 w-[290px] shrink-0 items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-slate-300 text-sm text-slate-500 transition hover:border-brand-500 hover:text-brand-600">
           <span className="text-lg leading-none">+</span> ستون جدید
-        </button>
+        </button>}
       </main>
 
       {editor && (
@@ -332,6 +493,7 @@ export function BoardView({ boardId, me }: { boardId: string; me: UserLite }) {
           open
           board={boardWithTasks}
           task={editor.task}
+          canDelete={!!editor.task && canDeleteTask(editor.task, me.id, myRole)}
           defaultColumnId={editor.columnId}
           onClose={() => setEditor(null)}
           onSaved={upsertTask}

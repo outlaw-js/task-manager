@@ -14,7 +14,7 @@ export const GET = handle(async (_req: Request, { params }: Ctx) => {
 
 export const PATCH = handle(async (req: Request, { params }: Ctx) => {
   const { boardId } = await params;
-  await requireBoard(boardId, { owner: true });
+  await requireBoard(boardId, { manage: true });
   const body = await readJson(req);
   const board = await prisma.board.update({
     where: { id: boardId },

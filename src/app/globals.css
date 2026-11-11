@@ -80,3 +80,10 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
 }
+
+@keyframes pwa-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}

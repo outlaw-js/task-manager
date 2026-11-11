@@ -13,10 +13,10 @@ interface Body {
 
 export const POST = handle(async (req: Request, { params }: Ctx) => {
   const { boardId } = await params;
-  await requireBoard(boardId);
   const body = await readJson<Body>(req);
   const columns = Array.isArray(body.columns) ? body.columns : [];
   const columnOrder = Array.isArray(body.columnOrder) ? body.columnOrder : [];
+  await requireBoard(boardId, { manage: columnOrder.length > 0 });
 
   const columnIds = [...new Set([...columns.map((c) => c.id), ...columnOrder])];
   const taskIds = columns.flatMap((c) => (Array.isArray(c.taskIds) ? c.taskIds : []));
